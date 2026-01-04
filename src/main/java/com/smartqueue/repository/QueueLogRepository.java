@@ -83,6 +83,20 @@ public interface QueueLogRepository extends JpaRepository<QueueLog, Long> {
     );
 
     /**
+     * Find queue log by shop ID, user ID, and status
+     * Alias method for QueueService
+     *
+     * @param shopId Shop ID
+     * @param userId User ID
+     * @param status Queue status
+     * @return Optional containing QueueLog
+     */
+    default Optional<QueueLog> findByShopIdAndUserIdAndStatus(
+            UUID shopId, UUID userId, QueueStatus status) {
+        return findFirstByUserIdAndShopIdAndStatusOrderByJoinedAtDesc(userId, shopId, status);
+    }
+
+    /**
      * Delete queue logs older than cutoff date
      * Used by cleanup scheduler (30-day retention)
      *
@@ -127,6 +141,37 @@ public interface QueueLogRepository extends JpaRepository<QueueLog, Long> {
            "AND ql.joinedAt BETWEEN :startDate AND :endDate")
     Double getAverageWaitTime(
             @Param("shopId") UUID shopId,
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate
+    );
+
+    /**
+     * Find queue logs by status and called before a certain time
+     * Used by stale queue cleanup scheduler to detect NO_SHOW users
+     *
+     * @param status Queue status (usually CALLED)
+     * @param calledBefore Cutoff time for called timestamp
+     * @return List of queue logs
+     */
+    List<QueueLog> findByStatusAndCalledAtBefore(QueueStatus status, Instant calledBefore);
+
+    /**
+     * Count queue logs by shop, status, and date range
+     * Used for NO_SHOW analytics
+     *
+     * @param shopId Shop ID
+     * @param status Queue status
+     * @param startDate Start of date range
+     * @param endDate End of date range
+     * @return Count of logs
+     */
+    @Query("SELECT COUNT(ql) FROM QueueLog ql " +
+           "WHERE ql.shop.id = :shopId " +
+           "AND ql.status = :status " +
+           "AND ql.joinedAt BETWEEN :startDate AND :endDate")
+    long countByShopIdAndStatusAndDateRange(
+            @Param("shopId") UUID shopId,
+            @Param("status") QueueStatus status,
             @Param("startDate") Instant startDate,
             @Param("endDate") Instant endDate
     );

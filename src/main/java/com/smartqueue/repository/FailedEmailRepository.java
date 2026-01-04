@@ -56,6 +56,15 @@ public interface FailedEmailRepository extends JpaRepository<FailedEmail, Long> 
     long countByStatus(EmailStatus status);
 
     /**
+     * Find failed emails by status list (for retry scheduler)
+     * Used to find emails in PENDING or RETRYING status
+     *
+     * @param statuses List of email statuses
+     * @return List of failed emails ordered by failed date
+     */
+    List<FailedEmail> findByStatusInOrderByFailedAtAsc(List<EmailStatus> statuses);
+
+    /**
      * Find emails that have exceeded max retry attempts
      * Used to identify permanently failed emails
      *

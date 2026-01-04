@@ -61,3 +61,7 @@ appendonly.aof
 
 # Docker
 docker-compose.override.yml
+
+# Documentation (local tracking files)
+*.md
+!README.md

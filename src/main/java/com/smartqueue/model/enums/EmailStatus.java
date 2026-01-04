@@ -21,6 +21,11 @@ public enum EmailStatus {
     SUCCESS,
 
     /**
+     * Email was sent successfully
+     */
+    SENT,
+
+    /**
      * Email failed permanently after max retry attempts
      */
     FAILED

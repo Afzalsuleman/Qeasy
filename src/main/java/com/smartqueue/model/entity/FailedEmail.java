@@ -41,6 +41,9 @@ public class FailedEmail {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String body;
 
+    @Column(name = "email_body", columnDefinition = "TEXT")
+    private String emailBody;
+
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
@@ -50,12 +53,23 @@ public class FailedEmail {
     private Integer attemptCount = 1;
 
     @NotNull
+    @Column(name = "retry_count", nullable = false)
+    @Builder.Default
+    private Integer retryCount = 0;
+
+    @NotNull
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
 
+    @Column(name = "failed_at")
+    private Instant failedAt;
+
     @Column(name = "last_attempt_at")
     private Instant lastAttemptAt;
+
+    @Column(name = "retried_at")
+    private Instant retriedAt;
 
     @Column(name = "retry_after")
     private Instant retryAfter;

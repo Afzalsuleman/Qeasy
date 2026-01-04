@@ -30,9 +30,10 @@ public enum ErrorCode {
     INVALID_SHOP_CONFIG("SHOP004", "Invalid shop configuration"),
 
     // Authorization Errors (AUTHZ001-AUTHZ003)
-    FORBIDDEN("AUTHZ001", "Access denied"),
-    NOT_SHOP_OWNER("AUTHZ002", "User is not the shop owner"),
-    INVALID_JWT_CLAIMS("AUTHZ003", "Invalid JWT claims"),
+    UNAUTHORIZED("AUTHZ001", "Unauthorized access"),
+    FORBIDDEN("AUTHZ002", "Access denied"),
+    NOT_SHOP_OWNER("AUTHZ003", "User is not the shop owner"),
+    INVALID_JWT_CLAIMS("AUTHZ004", "Invalid JWT claims"),
 
     // Validation Errors (VAL001-VAL004)
     INVALID_EMAIL("VAL001", "Invalid email format"),
@@ -40,11 +41,12 @@ public enum ErrorCode {
     MISSING_REQUIRED_FIELD("VAL003", "Missing required field"),
     VALUE_OUT_OF_RANGE("VAL004", "Value out of range"),
 
-    // System Errors (SYS001-SYS004)
-    INTERNAL_ERROR("SYS001", "Internal server error"),
-    DATABASE_ERROR("SYS002", "Database connection failed"),
-    REDIS_ERROR("SYS003", "Redis connection failed"),
-    EXTERNAL_SERVICE_ERROR("SYS004", "External service unavailable");
+    // System Errors (SYS001-SYS005)
+    SYSTEM_ERROR("SYS001", "System error"),
+    INTERNAL_ERROR("SYS002", "Internal server error"),
+    DATABASE_ERROR("SYS003", "Database connection failed"),
+    REDIS_ERROR("SYS004", "Redis connection failed"),
+    EXTERNAL_SERVICE_ERROR("SYS005", "External service unavailable");
 
     private final String code;
     private final String message;

@@ -1,88 +1,126 @@
 # Smart Queue Management System
 
-A production-ready backend service that enables shops to manage customer queues digitally, reducing physical wait times and improving customer experience.
+Backend service for digital queue management in shops.
 
-## Version
+## 📊 Project Status
 
-**v1.0.0** - MVP Phase (Development In Progress)
+**Phase 1: Foundation** - ✅ **100% COMPLETE**
+**Overall Progress**: 25% complete (31 of 160 hours)
 
-## Tech Stack
+👉 **See [DEVELOPMENT_TRACKER.md](DEVELOPMENT_TRACKER.md) for detailed progress**
 
-- **Java**: 17
-- **Framework**: Spring Boot 3.2.1
-- **Build Tool**: Gradle 8.5
-- **Database**: PostgreSQL 15
-- **Cache/Queue**: Redis 7
-- **Migration**: Flyway
-- **Security**: Spring Security + JWT
-- **Email**: Gmail SMTP with Resilience4j Circuit Breaker
-- **WebSocket**: STOMP over WebSocket
-- **Monitoring**: Spring Boot Actuator + Prometheus
-- **Documentation**: SpringDoc OpenAPI 3.0
-- **Testing**: JUnit 5, Mockito, TestContainers
+---
 
-## Key Features
+## 🚀 Quick Start
 
-✅ **Implemented:**
-- ✅ Project structure with Gradle
-- ✅ Spring Boot application configuration
-- ✅ Domain entities (User, Shop, QueueLog, FailedEmail)
-- ✅ Enums (QueueStatus, EmailStatus, ErrorCode)
-- ✅ Flyway migrations (V1-V6) with auto-update triggers
-- ✅ Comprehensive application.yml with profiles (dev, test, prod)
-- ✅ Circuit breaker & retry configuration (Resilience4j)
+### Prerequisites
+- Java 17+
+- Docker & Docker Compose
 
-🚧 **In Progress:**
-- JWT authentication and OTP service
-- Email service with circuit breaker
-- Redis-based queue management with Lua scripts
-- WebSocket real-time updates
-- Scheduler services (no-show detection, cleanup)
+### Setup
 
-📋 **Pending:**
-- REST controllers
-- Global exception handler
-- Correlation ID filter
-- Service layer implementations
-- Unit and integration tests
-- Docker Compose configuration
-- OpenAPI documentation
+```bash
+# 1. Start services
+docker-compose up -d
 
-## Project Structure
+# 2. Run migrations
+./gradlew flywayMigrate
 
+# 3. Build project
+./gradlew clean build -x test
+
+# 4. Run application (when services are implemented)
+./gradlew bootRun
 ```
-smart-queue/
-├── src/
-│   ├── main/
-│   │   ├── java/com/smartqueue/
-│   │   │   ├── SmartQueueApplication.java
-│   │   │   ├── config/              # Configuration classes
-│   │   │   ├── controller/          # REST controllers
-│   │   │   ├── exception/           # Custom exceptions
-│   │   │   ├── filter/              # Filters (CORS, Correlation ID)
-│   │   │   ├── model/
-│   │   │   │   ├── dto/            # Request/Response DTOs
-│   │   │   │   ├── entity/         # JPA entities ✅
-│   │   │   │   └── enums/          # Enums ✅
-│   │   │   ├── repository/         # JPA repositories
-│   │   │   ├── scheduler/          # Scheduled tasks
-│   │   │   ├── security/           # Security components
-│   │   │   ├── service/            # Business logic
-│   │   │   └── util/               # Utility classes
-│   │   └── resources/
-│   │       ├── application.yml      ✅
-│   │       ├── db/migration/        # Flyway migrations ✅
-│   │       ├── lua/                 # Lua scripts for Redis
-│   │       └── templates/email/     # Thymeleaf email templates
-│   └── test/
-│       ├── java/com/smartqueue/
-│       │   ├── service/            # Unit tests
-│       │   ├── controller/         # Controller tests
-│       │   ├── repository/         # Repository tests
-│       │   └── integration/        # Integration tests
-│       └── resources/
-│           └── application-test.yml
-├── build.gradle                     ✅
-├── settings.gradle                  ✅
-├── gradlew                          ✅
-└── docker-compose.yml               ⏳
+
+---
+
+## 🛠️ Tech Stack
+
+- **Java 17** with Spring Boot 3.2.1
+- **PostgreSQL 15** for persistence
+- **Redis 7** for queue state
+- **Gradle 8.5** for build
+- **JWT** for authentication
+- **WebSocket** for real-time updates
+- **Flyway** for database migrations
+- **Resilience4j** for circuit breaker
+
+---
+
+## 📁 Key Files
+
+| File | Purpose |
+|------|---------|
+| **[DEVELOPMENT_TRACKER.md](DEVELOPMENT_TRACKER.md)** | 👈 **MAIN TRACKING DOCUMENT** |
+| [tech-design-v3.md](tech-design-v3.md) | Technical specifications |
+| [BUILD_STATUS.md](BUILD_STATUS.md) | Build info & troubleshooting |
+| [docker-compose.yml](docker-compose.yml) | Infrastructure setup |
+
+---
+
+## 📝 What's Implemented (Phase 1)
+
+✅ Project setup with Gradle
+✅ Domain entities (User, Shop, QueueLog, FailedEmail)
+✅ Database migrations (6 Flyway scripts)
+✅ Exception framework (12 custom exceptions)
+✅ Error handling (GlobalExceptionHandler)
+✅ Repositories (4 JPA repositories)
+✅ Security (JWT authentication)
+✅ Correlation ID filter
+✅ Docker Compose setup
+
+**Total**: 49 files created
+
+---
+
+## 🚧 What's Next (Phase 2)
+
+🔴 AuthService (OTP + JWT)
+🔴 EmailService (Gmail SMTP + Circuit Breaker)
+🔴 ShopService (CRUD operations)
+🔴 QueueService (Redis + Lua scripts)
+
+**Estimated**: 40 hours
+
+---
+
+## 📚 Documentation
+
+- **Main Tracker**: [DEVELOPMENT_TRACKER.md](DEVELOPMENT_TRACKER.md) ← Start here
+- **Tech Design**: [tech-design-v3.md](tech-design-v3.md)
+- **Tech Review**: [tech-design-review-v3.md](tech-design-review-v3.md)
+
+---
+
+## 🔧 Commands
+
+```bash
+# Build
+./gradlew clean build
+
+# Test (when implemented)
+./gradlew test
+
+# Run
+./gradlew bootRun
+
+# Docker
+docker-compose up -d    # Start services
+docker-compose ps       # Check status
+docker-compose down     # Stop services
+```
+
+---
+
+## 📞 Getting Help
+
+1. Read [DEVELOPMENT_TRACKER.md](DEVELOPMENT_TRACKER.md)
+2. Check [BUILD_STATUS.md](BUILD_STATUS.md) for build issues
+3. Refer to [tech-design-v3.md](tech-design-v3.md) for specs
+
+---
+
+**Build Status**: ✅ PASSING
+**Last Updated**: 2026-01-04
