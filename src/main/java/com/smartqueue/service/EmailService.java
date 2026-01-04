@@ -4,6 +4,7 @@ import com.smartqueue.exception.EmailLimitExceededException;
 import com.smartqueue.exception.EmailServiceException;
 import com.smartqueue.model.entity.FailedEmail;
 import com.smartqueue.model.enums.EmailStatus;
+import com.smartqueue.model.enums.EmailType;
 import com.smartqueue.repository.FailedEmailRepository;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.mail.MessagingException;
@@ -157,14 +158,18 @@ public class EmailService {
                     .recipient(toEmail)
                     .subject("Your Smart Queue OTP Code")
                     .body(String.format("OTP: %s for user: %s", otp, userName))
+                    .emailBody(String.format("OTP: %s", otp))
+                    .emailType(EmailType.OTP)  // Mark as OTP email - will not be auto-retried
                     .status(EmailStatus.PENDING)
-                    .attemptCount(0)
+                    .attemptCount(1)
+                    .retryCount(0)
+                    .failedAt(Instant.now())
                     .retryAfter(Instant.now().plus(5, ChronoUnit.MINUTES))
                     .failureReason(errorMessage)
                     .build();
 
             failedEmailRepository.save(failedEmail);
-            log.info("Failed email saved for retry: {}", toEmail);
+            log.info("Failed OTP email saved (will NOT be auto-retried): {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to save failed email record: {}", e.getMessage());
         }

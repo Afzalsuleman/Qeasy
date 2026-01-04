@@ -1,6 +1,7 @@
 package com.smartqueue.model.entity;
 
 import com.smartqueue.model.enums.EmailStatus;
+import com.smartqueue.model.enums.EmailType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -79,6 +80,12 @@ public class FailedEmail {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private EmailStatus status = EmailStatus.PENDING;
+
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "email_type", nullable = false, length = 20)
+    @Builder.Default
+    private EmailType emailType = EmailType.NOTIFICATION;
 
     @Override
     public boolean equals(Object o) {

@@ -1,5 +1,6 @@
 package com.smartqueue.model.entity;
 
+import com.smartqueue.model.enums.UserRole;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -38,6 +39,11 @@ public class User extends BaseEntity {
 
     @Column(length = 255)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private UserRole role = UserRole.USER;
 
     @Override
     public boolean equals(Object o) {

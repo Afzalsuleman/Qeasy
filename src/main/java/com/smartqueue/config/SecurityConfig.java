@@ -45,19 +45,30 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints (no authentication required)
                         .requestMatchers(
-                                "/api/v1/auth/**",           // OTP request, verify
-                                "/actuator/health",           // Health check
-                                "/actuator/info",             // Info endpoint
-                                "/actuator/prometheus",       // Metrics (can restrict in prod)
-                                "/api-docs/**",               // OpenAPI docs
-                                "/swagger-ui/**",             // Swagger UI
-                                "/swagger-ui.html",           // Swagger UI
-                                "/v3/api-docs/**",            // OpenAPI v3 docs
-                                "/error"                      // Error endpoint
+                                "/api/v1/auth/**",                   // OTP request, verify
+                                "/api/v1/shops",                     // Get all active shops (users browse shops)
+                                "/api/v1/shops/{shopId}",           // Get shop by ID (users view shop details)
+                                "/actuator/health",                 // Health check
+                                "/actuator/info",                   // Info endpoint
+                                "/actuator/prometheus",             // Metrics (can restrict in prod)
+                                "/api-docs/**",                     // OpenAPI docs
+                                "/swagger-ui/**",                   // Swagger UI
+                                "/swagger-ui.html",                 // Swagger UI
+                                "/v3/api-docs/**",                  // OpenAPI v3 docs
+                                "/error"                            // Error endpoint
                         ).permitAll()
 
                         // WebSocket endpoint (will be authenticated via interceptor)
                         .requestMatchers("/ws/**").permitAll()
+
+                        // Analytics endpoints - SHOP_OWNER role only
+                        .requestMatchers(
+                                "/api/v1/analytics/**"        // All analytics endpoints
+                        ).hasAnyRole("SHOP_OWNER")
+
+                        // Shop update/delete endpoints - SHOP_OWNER role only
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/shops/**").hasAnyRole("SHOP_OWNER")       // Update shop
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/shops/**").hasAnyRole("SHOP_OWNER")    // Delete shop
 
                         // All other endpoints require authentication
                         .anyRequest().authenticated()

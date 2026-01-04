@@ -8,6 +8,7 @@ import com.smartqueue.model.dto.ShopResponse;
 import com.smartqueue.model.dto.UpdateShopRequest;
 import com.smartqueue.model.entity.Shop;
 import com.smartqueue.model.entity.User;
+import com.smartqueue.model.enums.UserRole;
 import com.smartqueue.repository.ShopRepository;
 import com.smartqueue.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -56,12 +57,20 @@ public class ShopService {
             throw new ShopAlreadyExistsException("You already have an active shop. Deactivate it before creating a new one.");
         }
 
+        // Promote user to SHOP_OWNER role if they are still a regular USER
+        if (owner.getRole() == UserRole.USER) {
+            owner.setRole(UserRole.SHOP_OWNER);
+            userRepository.save(owner);
+            log.info("Promoted user {} to SHOP_OWNER role", owner.getEmail());
+        }
+
         // Create shop entity
         Shop shop = Shop.builder()
                 .owner(owner)
                 .name(request.getName())
                 .description(request.getDescription())
                 .address(request.getAddress())
+                .imageUrl(request.getImageUrl())
                 .avgServiceTimeMinutes(request.getAvgServiceTimeMinutes())
                 .maxQueueSize(request.getMaxQueueSize())
                 .isActive(true)
@@ -164,6 +173,9 @@ public class ShopService {
         if (request.getAddress() != null) {
             shop.setAddress(request.getAddress());
         }
+        if (request.getImageUrl() != null) {
+            shop.setImageUrl(request.getImageUrl());
+        }
         if (request.getAvgServiceTimeMinutes() != null) {
             shop.setAvgServiceTimeMinutes(request.getAvgServiceTimeMinutes());
         }
@@ -236,6 +248,7 @@ public class ShopService {
                 .name(shop.getName())
                 .description(shop.getDescription())
                 .address(shop.getAddress())
+                .imageUrl(shop.getImageUrl())
                 .phone(null)
                 .avgServiceTimeMinutes(shop.getAvgServiceTimeMinutes())
                 .maxQueueSize(shop.getMaxQueueSize())

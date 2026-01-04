@@ -40,6 +40,7 @@ public class AnalyticsService {
 
     /**
      * Get comprehensive analytics for a shop
+     * Authorization is handled at controller level via @ShopOwnerOnly annotation
      *
      * @param shopId Shop UUID
      * @param days Number of days to analyze (default: 7)
@@ -111,6 +112,7 @@ public class AnalyticsService {
 
     /**
      * Get current queue statistics
+     * Authorization is handled at controller level via @ShopOwnerOnly annotation
      *
      * @param shopId Shop UUID
      * @return AnalyticsResponse with current queue metrics
@@ -145,6 +147,7 @@ public class AnalyticsService {
 
     /**
      * Get today's statistics for a shop
+     * Authorization is handled at controller level via @ShopOwnerOnly annotation
      *
      * @param shopId Shop UUID
      * @return AnalyticsResponse with today's metrics

@@ -47,6 +47,9 @@ public class Shop extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String address;
 
+    @Column(length = 500)
+    private String imageUrl;
+
     @Column
     private Double latitude;
 

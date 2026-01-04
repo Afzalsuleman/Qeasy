@@ -36,6 +36,9 @@ public class ShopResponse {
     @Schema(description = "Shop address", example = "123 Main St, New York, NY 10001")
     private String address;
 
+    @Schema(description = "Shop image URL", example = "https://example.com/shop-image.jpg")
+    private String imageUrl;
+
     @Schema(description = "Shop phone number", example = "+1-555-0123")
     private String phone;
 

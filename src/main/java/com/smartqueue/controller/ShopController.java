@@ -26,13 +26,16 @@ import java.util.UUID;
 /**
  * Shop management controller
  * Handles shop CRUD operations
+ *
+ * Note: GET /api/v1/shops (list all shops) and GET /api/v1/shops/{shopId} (get shop by ID)
+ * are public endpoints - users can browse available shops without authentication.
+ * Other endpoints (create, update, delete) require authentication and appropriate authorization.
  */
 @RestController
 @RequestMapping("/api/v1/shops")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Shop Management", description = "Endpoints for managing shops")
-@SecurityRequirement(name = "bearerAuth")
 public class ShopController {
 
     private final ShopService shopService;
@@ -59,6 +62,7 @@ public class ShopController {
                     content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
             )
     })
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping
     public ResponseEntity<ShopResponse> createShop(
             @Valid @RequestBody CreateShopRequest request,
@@ -132,6 +136,7 @@ public class ShopController {
                     content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
             )
     })
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/my-shop")
     public ResponseEntity<ShopResponse> getMyShop(Authentication authentication) {
         String ownerEmail = authentication.getName();
@@ -171,6 +176,7 @@ public class ShopController {
                     content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
             )
     })
+    @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{shopId}")
     public ResponseEntity<ShopResponse> updateShop(
             @Parameter(description = "Shop UUID", required = true)
@@ -209,6 +215,7 @@ public class ShopController {
                     content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
             )
     })
+    @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/{shopId}")
     public ResponseEntity<Void> deleteShop(
             @Parameter(description = "Shop UUID", required = true)

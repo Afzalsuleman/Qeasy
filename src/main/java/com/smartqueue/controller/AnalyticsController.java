@@ -33,6 +33,8 @@ public class AnalyticsController {
 
     /**
      * Get comprehensive analytics for a shop
+     * Only shop owners can access analytics for their shops
+     * Authorization is enforced via SecurityConfig (hasAnyRole SHOP_OWNER)
      *
      * @param shopId Shop UUID
      * @param days Number of days to analyze (default: 7)
@@ -40,8 +42,8 @@ public class AnalyticsController {
      */
     @GetMapping("/shop/{shopId}")
     @Operation(
-            summary = "Get shop analytics",
-            description = "Get comprehensive analytics for a shop including visitors, wait times, and completion rates"
+            summary = "Get shop analytics (Shop Owner only)",
+            description = "Get comprehensive analytics for your shop including visitors, wait times, and completion rates. Only accessible by shop owners."
     )
     public ResponseEntity<AnalyticsResponse> getShopAnalytics(
             @Parameter(description = "Shop ID", required = true)
@@ -62,14 +64,16 @@ public class AnalyticsController {
 
     /**
      * Get current queue statistics
+     * Only shop owners can access analytics for their shops
+     * Authorization is enforced via SecurityConfig (hasAnyRole SHOP_OWNER)
      *
      * @param shopId Shop UUID
      * @return AnalyticsResponse with current queue metrics
      */
     @GetMapping("/shop/{shopId}/current")
     @Operation(
-            summary = "Get current queue stats",
-            description = "Get real-time queue statistics including current size and estimated wait time"
+            summary = "Get current queue stats (Shop Owner only)",
+            description = "Get real-time queue statistics including current size and estimated wait time. Only accessible by shop owners."
     )
     public ResponseEntity<AnalyticsResponse> getCurrentQueueStats(
             @Parameter(description = "Shop ID", required = true)
@@ -83,14 +87,16 @@ public class AnalyticsController {
 
     /**
      * Get today's statistics for a shop
+     * Only shop owners can access analytics for their shops
+     * Authorization is enforced via SecurityConfig (hasAnyRole SHOP_OWNER)
      *
      * @param shopId Shop UUID
      * @return AnalyticsResponse with today's metrics
      */
     @GetMapping("/shop/{shopId}/today")
     @Operation(
-            summary = "Get today's stats",
-            description = "Get today's statistics for a shop including visitors and served count"
+            summary = "Get today's stats (Shop Owner only)",
+            description = "Get today's statistics for your shop including visitors and served count. Only accessible by shop owners."
     )
     public ResponseEntity<AnalyticsResponse> getTodayStats(
             @Parameter(description = "Shop ID", required = true)

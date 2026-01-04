@@ -2,6 +2,7 @@ package com.smartqueue.scheduler;
 
 import com.smartqueue.model.entity.FailedEmail;
 import com.smartqueue.model.enums.EmailStatus;
+import com.smartqueue.model.enums.EmailType;
 import com.smartqueue.repository.FailedEmailRepository;
 import com.smartqueue.service.EmailService;
 import lombok.extern.slf4j.Slf4j;
@@ -75,7 +76,18 @@ public class FailedEmailRetryScheduler {
             int failureCount = 0;
             int permanentFailureCount = 0;
 
+            int skippedOtpCount = 0;
+
             for (FailedEmail failedEmail : failedEmails) {
+                // Skip OTP emails - they should not be retried automatically
+                // OTP expires in 5 minutes, so retrying is pointless and confusing
+                if (failedEmail.getEmailType() == EmailType.OTP) {
+                    log.info("Skipping OTP email {} - OTP emails are not auto-retried (user must request new OTP)",
+                            failedEmail.getId());
+                    skippedOtpCount++;
+                    continue;
+                }
+
                 // Check if email is ready for retry (exponential backoff)
                 if (!isReadyForRetry(failedEmail)) {
                     log.debug("Email {} not yet ready for retry", failedEmail.getId());
@@ -135,8 +147,8 @@ public class FailedEmailRetryScheduler {
                 }
             }
 
-            log.info("Email retry task completed. Success: {}, Failed: {}, Permanent failures: {}",
-                    successCount, failureCount, permanentFailureCount);
+            log.info("Email retry task completed. Success: {}, Failed: {}, Permanent failures: {}, Skipped OTP emails: {}",
+                    successCount, failureCount, permanentFailureCount, skippedOtpCount);
 
         } catch (Exception e) {
             log.error("Error during failed email retry task: {}", e.getMessage(), e);
@@ -170,21 +182,43 @@ public class FailedEmailRetryScheduler {
     }
 
     /**
-     * Extract OTP from email body (simple extraction)
-     * In production, consider storing OTP separately
+     * Extract OTP from email body
+     * Email body format: "OTP: 123456"
      */
     private String extractOtpFromBody(String emailBody) {
-        // This is a simplified extraction - in real scenario, store OTP separately
-        // For now, return a placeholder since OTP may have expired
-        return "------"; // Placeholder - OTP should be regenerated
+        if (emailBody == null || emailBody.isEmpty()) {
+            return "";
+        }
+
+        // Extract OTP from format "OTP: 123456"
+        if (emailBody.contains("OTP: ")) {
+            String[] parts = emailBody.split("OTP: ");
+            if (parts.length > 1) {
+                return parts[1].trim();
+            }
+        }
+
+        return "";
     }
 
     /**
      * Extract recipient name from email body
+     * Email body format: "OTP: 123456 for user: John Doe"
      */
     private String extractNameFromBody(String emailBody) {
-        // Simplified extraction - in production, store name separately
-        return "User"; // Default name
+        if (emailBody == null || emailBody.isEmpty()) {
+            return "User";
+        }
+
+        // Extract name from format "... for user: John Doe"
+        if (emailBody.contains("for user: ")) {
+            String[] parts = emailBody.split("for user: ");
+            if (parts.length > 1) {
+                return parts[1].trim();
+            }
+        }
+
+        return "User";
     }
 
     /**
