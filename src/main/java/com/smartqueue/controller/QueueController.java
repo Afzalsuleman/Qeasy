@@ -192,4 +192,48 @@ public class QueueController {
         QueueResponse response = queueService.getQueuePosition(shopId, userEmail);
         return ResponseEntity.ok(response);
     }
+
+    @Operation(
+            summary = "Mark current user as served/completed (Shop owner only)",
+            description = "Mark the currently served user as completed and remove them from the queue. " +
+                    "Only the shop owner can mark users as completed. This should be called after the user has been served."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "User marked as served successfully",
+                    content = @Content(schema = @Schema(implementation = QueueResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "No user is currently being served or shop inactive",
+                    content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - JWT token missing or invalid",
+                    content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Not authorized - only shop owner can complete users",
+                    content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Shop not found",
+                    content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
+            )
+    })
+    @PostMapping("/complete/{shopId}")
+    public ResponseEntity<QueueResponse> completeUser(
+            @Parameter(description = "Shop UUID", required = true)
+            @PathVariable UUID shopId,
+            Authentication authentication
+    ) {
+        String ownerEmail = authentication.getName();
+        log.info("Owner {} marking current user as served for shop {}", ownerEmail, shopId);
+        QueueResponse response = queueService.completeUser(shopId, ownerEmail);
+        return ResponseEntity.ok(response);
+    }
 }

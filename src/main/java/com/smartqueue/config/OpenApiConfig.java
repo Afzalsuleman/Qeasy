@@ -46,6 +46,7 @@ public class OpenApiConfig {
                                 Backend API for digital queue management system in shops.
 
                                 ## Authentication Flow
+                                ### Option 1: OTP-Based Authentication (Regular Users)
                                 1. Call POST /api/v1/auth/generate-otp with email and name
                                 2. Check your email for the OTP code
                                 3. Call POST /api/v1/auth/verify-otp with email and OTP
@@ -53,8 +54,15 @@ public class OpenApiConfig {
                                 5. Click 'Authorize' button and enter: Bearer <your-token>
                                 6. Now you can access protected endpoints
 
+                                ### Option 2: Password-Based Authentication (Admin & Shop Owner)
+                                1. Call POST /api/v1/auth/login with email and password
+                                2. Copy the JWT token from the response
+                                3. Click 'Authorize' button and enter: Bearer <your-token>
+                                4. Now you can access protected endpoints
+
                                 ## Features
                                 - OTP-based authentication via email
+                                - Password-based authentication for admins and shop owners
                                 - Shop management (create, update, configure)
                                 - Real-time queue management
                                 - Redis-backed queue state

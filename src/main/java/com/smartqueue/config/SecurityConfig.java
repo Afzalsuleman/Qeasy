@@ -10,6 +10,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -45,7 +47,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints (no authentication required)
                         .requestMatchers(
-                                "/api/v1/auth/**",                   // OTP request, verify
+                                "/api/v1/auth/**",                   // OTP request, verify, password login
                                 "/api/v1/shops",                     // Get all active shops (users browse shops)
                                 "/api/v1/shops/{shopId}",           // Get shop by ID (users view shop details)
                                 "/actuator/health",                 // Health check
@@ -60,6 +62,9 @@ public class SecurityConfig {
 
                         // WebSocket endpoint (will be authenticated via interceptor)
                         .requestMatchers("/ws/**").permitAll()
+
+                        // Admin endpoints - ADMIN role only
+                        .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN")
 
                         // Analytics endpoints - SHOP_OWNER role only
                         .requestMatchers(
@@ -131,5 +136,14 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
 
         return source;
+    }
+
+    /**
+     * Password encoder bean for secure password storage
+     * Uses BCrypt algorithm for password hashing
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 }

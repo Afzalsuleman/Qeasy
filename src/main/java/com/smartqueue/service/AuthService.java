@@ -1,8 +1,11 @@
 package com.smartqueue.service;
 
 import com.smartqueue.exception.InvalidOtpException;
+import com.smartqueue.exception.UnauthorizedException;
 import com.smartqueue.model.dto.AuthResponse;
+import com.smartqueue.model.dto.ChangePasswordRequest;
 import com.smartqueue.model.dto.GenerateOtpRequest;
+import com.smartqueue.model.dto.PasswordLoginRequest;
 import com.smartqueue.model.dto.VerifyOtpRequest;
 import com.smartqueue.model.entity.User;
 import com.smartqueue.repository.UserRepository;
@@ -11,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +34,7 @@ public class AuthService {
     private final EmailService emailService;
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, String> redisTemplate;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${app.otp.length:6}")
     private int otpLength;
@@ -182,5 +187,101 @@ public class AuthService {
     public boolean hasValidOtp(String email) {
         String otpKey = REDIS_OTP_PREFIX + email.toLowerCase().trim();
         return Boolean.TRUE.equals(redisTemplate.hasKey(otpKey));
+    }
+
+    /**
+     * Login with email and password
+     * ADMIN and SHOP_OWNER users can authenticate with password instead of OTP
+     * Regular USER roles must use OTP authentication
+     *
+     * @param request PasswordLoginRequest with email and password
+     * @return AuthResponse with JWT token
+     * @throws UnauthorizedException if user not found, wrong password, or USER role attempts login
+     */
+    @Transactional(readOnly = true)
+    public AuthResponse loginWithPassword(PasswordLoginRequest request) {
+        log.info("Password login attempt for email: {}", request.getEmail());
+
+        // Find user by email
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
+
+        // Verify password is set (USER roles don't have passwords, so this handles role validation implicitly)
+        if (user.getPassword() == null || !user.getPasswordSet()) {
+            log.warn("User {} attempted login but password not set", request.getEmail());
+            throw new UnauthorizedException("Password not set. Please set password first.");
+        }
+
+        // Verify password matches
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            log.warn("Invalid password for user: {}", request.getEmail());
+            throw new UnauthorizedException("Invalid email or password");
+        }
+
+        log.info("Password login successful for user: {} with role: {}", request.getEmail(), user.getRole());
+
+        // Generate JWT token
+        String token = jwtUtil.generateToken(user);
+
+        return AuthResponse.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .token(token)
+                .expiresIn(jwtExpirationMs)
+                .message("Authentication successful")
+                .build();
+    }
+
+    /**
+     * Change password for authenticated user
+     * Used by shop owners after receiving invitation to set their password
+     * Password is only required for ADMIN and SHOP_OWNER roles
+     *
+     * @param request ChangePasswordRequest with new password
+     * @param userEmail Email of authenticated user
+     * @return AuthResponse with new JWT token
+     * @throws UnauthorizedException if user not found or user role doesn't require password
+     * @throws IllegalArgumentException if passwords don't match
+     */
+    @Transactional
+    public AuthResponse changePassword(ChangePasswordRequest request, String userEmail) {
+        log.info("Password change requested for user: {}", userEmail);
+
+        // Find user
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
+
+        // Password is only required for ADMIN and SHOP_OWNER roles
+        if (user.getRole() == com.smartqueue.model.enums.UserRole.USER) {
+            log.warn("Regular USER roles do not require password: {}", userEmail);
+            throw new UnauthorizedException("Password management is only for Admin and Shop Owner roles");
+        }
+
+        // Validate passwords match
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            log.warn("Password confirmation failed for user: {}", userEmail);
+            throw new IllegalArgumentException("New password and confirmation password do not match");
+        }
+
+        // Encode and set new password
+        String encodedPassword = passwordEncoder.encode(request.getNewPassword());
+        user.setPassword(encodedPassword);
+        user.setPasswordSet(true);
+        userRepository.save(user);
+
+        log.info("Password changed successfully for user: {} with role: {}", userEmail, user.getRole());
+
+        // Generate new JWT token
+        String token = jwtUtil.generateToken(user);
+
+        return AuthResponse.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .token(token)
+                .expiresIn(jwtExpirationMs)
+                .message("Password changed successfully")
+                .build();
     }
 }

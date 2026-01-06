@@ -45,6 +45,7 @@ public class JwtUtil {
         claims.put("userId", user.getId().toString());
         claims.put("email", user.getEmail());
         claims.put("name", user.getName());
+        claims.put("role", user.getRole().name());
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -119,6 +120,17 @@ public class JwtUtil {
     public String getNameFromToken(String token) {
         Claims claims = getClaims(token);
         return claims.get("name", String.class);
+    }
+
+    /**
+     * Extract role from JWT token
+     *
+     * @param token JWT token string
+     * @return User's role as string (e.g., "ADMIN", "SHOP_OWNER", "USER")
+     */
+    public String getRoleFromToken(String token) {
+        Claims claims = getClaims(token);
+        return claims.get("role", String.class);
     }
 
     /**

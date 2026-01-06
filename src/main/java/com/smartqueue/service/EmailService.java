@@ -3,6 +3,7 @@ package com.smartqueue.service;
 import com.smartqueue.exception.EmailLimitExceededException;
 import com.smartqueue.exception.EmailServiceException;
 import com.smartqueue.model.entity.FailedEmail;
+import com.smartqueue.model.entity.User;
 import com.smartqueue.model.enums.EmailStatus;
 import com.smartqueue.model.enums.EmailType;
 import com.smartqueue.repository.FailedEmailRepository;
@@ -190,5 +191,184 @@ public class EmailService {
         String lockKey = REDIS_EMAIL_LOCK_PREFIX + email;
         redisTemplate.opsForValue().set(lockKey, "locked", 5, TimeUnit.MINUTES);
         log.info("Email {} locked for 5 minutes", email);
+    }
+
+    /**
+     * Send shop owner invitation email with login credentials
+     * Invitation tells shop owner to set their password and login
+     *
+     * @param shopOwner Shop owner user entity
+     * @throws EmailServiceException if email sending fails
+     */
+    @CircuitBreaker(name = "emailService", fallbackMethod = "sendShopOwnerInvitationFallback")
+    @Async
+    public void sendShopOwnerInvitation(User shopOwner) {
+        log.info("Attempting to send shop owner invitation to: {}", shopOwner.getEmail());
+
+        // Check daily limit
+        checkDailyLimit();
+
+        try {
+            // Create email message
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail, senderName);
+            helper.setTo(shopOwner.getEmail());
+            helper.setSubject("Smart Queue Shop Owner Account Created - Set Your Password");
+
+            // Create Thymeleaf context
+            Context context = new Context();
+            context.setVariable("ownerName", shopOwner.getName() != null ? shopOwner.getName() : "Shop Owner");
+            context.setVariable("ownerEmail", shopOwner.getEmail());
+            context.setVariable("appName", "Smart Queue");
+            context.setVariable("loginUrl", "http://localhost:3000/login"); // TODO: Make configurable
+
+            // Process template
+            String htmlContent = templateEngine.process("shop-owner-invitation", context);
+            helper.setText(htmlContent, true);
+
+            // Send email
+            mailSender.send(message);
+
+            // Increment daily counter
+            incrementDailyCounter();
+
+            log.info("Shop owner invitation email sent successfully to: {}", shopOwner.getEmail());
+
+        } catch (MessagingException e) {
+            log.error("Failed to send shop owner invitation to {}: {}", shopOwner.getEmail(), e.getMessage());
+            saveShopOwnerInvitationFailedEmail(shopOwner, e.getMessage());
+            throw new EmailServiceException("Failed to send shop owner invitation email", e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending shop owner invitation to {}: {}", shopOwner.getEmail(), e.getMessage());
+            saveShopOwnerInvitationFailedEmail(shopOwner, e.getMessage());
+            throw new EmailServiceException("Unexpected error sending shop owner invitation email", e);
+        }
+    }
+
+    /**
+     * Fallback method for shop owner invitation when circuit breaker is open
+     */
+    private void sendShopOwnerInvitationFallback(User shopOwner, Exception e) {
+        log.error("Circuit breaker OPEN - Email service unavailable. Saving shop owner invitation for retry.", e);
+        saveShopOwnerInvitationFailedEmail(shopOwner, "Circuit breaker open: " + e.getMessage());
+        throw new EmailServiceException("Email service is temporarily unavailable. Invitation will be resent.", e);
+    }
+
+    /**
+     * Send shop owner invitation email with temporary password
+     *
+     * @param shopOwner Shop owner user entity
+     * @param temporaryPassword Temporary password to be sent in email
+     * @throws EmailServiceException if email sending fails
+     */
+    @CircuitBreaker(name = "emailService", fallbackMethod = "sendShopOwnerInvitationWithPasswordFallback")
+    @Async
+    public void sendShopOwnerInvitationWithPassword(User shopOwner, String temporaryPassword) {
+        log.info("Attempting to send shop owner invitation with password to: {}", shopOwner.getEmail());
+
+        // Check daily limit
+        checkDailyLimit();
+
+        try {
+            // Create email message
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail, senderName);
+            helper.setTo(shopOwner.getEmail());
+            helper.setSubject("Smart Queue Shop Owner Account Created - Your Temporary Password");
+
+            // Create Thymeleaf context
+            Context context = new Context();
+            context.setVariable("ownerName", shopOwner.getName() != null ? shopOwner.getName() : "Shop Owner");
+            context.setVariable("ownerEmail", shopOwner.getEmail());
+            context.setVariable("temporaryPassword", temporaryPassword);
+            context.setVariable("appName", "Smart Queue");
+            context.setVariable("loginUrl", "http://localhost:3000/login"); // TODO: Make configurable
+
+            // Process template
+            String htmlContent = templateEngine.process("shop-owner-invitation-password", context);
+            helper.setText(htmlContent, true);
+
+            // Send email
+            mailSender.send(message);
+
+            // Increment daily counter
+            incrementDailyCounter();
+
+            log.info("Shop owner invitation email with password sent successfully to: {}", shopOwner.getEmail());
+
+        } catch (MessagingException e) {
+            log.error("Failed to send shop owner invitation with password to {}: {}", shopOwner.getEmail(), e.getMessage());
+            saveShopOwnerInvitationWithPasswordFailedEmail(shopOwner, temporaryPassword, e.getMessage());
+            throw new EmailServiceException("Failed to send shop owner invitation email", e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending shop owner invitation with password to {}: {}", shopOwner.getEmail(), e.getMessage());
+            saveShopOwnerInvitationWithPasswordFailedEmail(shopOwner, temporaryPassword, e.getMessage());
+            throw new EmailServiceException("Unexpected error sending shop owner invitation email", e);
+        }
+    }
+
+    /**
+     * Fallback method for shop owner invitation with password when circuit breaker is open
+     */
+    private void sendShopOwnerInvitationWithPasswordFallback(User shopOwner, String temporaryPassword, Exception e) {
+        log.error("Circuit breaker OPEN - Email service unavailable. Saving shop owner invitation for retry.", e);
+        saveShopOwnerInvitationWithPasswordFailedEmail(shopOwner, temporaryPassword, "Circuit breaker open: " + e.getMessage());
+        throw new EmailServiceException("Email service is temporarily unavailable. Invitation will be resent.", e);
+    }
+
+    /**
+     * Save failed shop owner invitation with password for retry
+     */
+    private void saveShopOwnerInvitationWithPasswordFailedEmail(User shopOwner, String temporaryPassword, String errorMessage) {
+        try {
+            FailedEmail failedEmail = FailedEmail.builder()
+                    .recipient(shopOwner.getEmail())
+                    .subject("Smart Queue Shop Owner Account Created - Your Temporary Password")
+                    .body("Shop owner invitation for: " + shopOwner.getEmail())
+                    .emailBody("Temporary password: " + temporaryPassword)
+                    .emailType(EmailType.NOTIFICATION)
+                    .status(EmailStatus.PENDING)
+                    .attemptCount(1)
+                    .retryCount(0)
+                    .failedAt(Instant.now())
+                    .retryAfter(Instant.now().plus(2, ChronoUnit.MINUTES))
+                    .failureReason(errorMessage)
+                    .build();
+
+            failedEmailRepository.save(failedEmail);
+            log.info("Failed shop owner invitation email saved for retry: {}", shopOwner.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to save shop owner invitation failed email record: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Save failed shop owner invitation for retry
+     */
+    private void saveShopOwnerInvitationFailedEmail(User shopOwner, String errorMessage) {
+        try {
+            FailedEmail failedEmail = FailedEmail.builder()
+                    .recipient(shopOwner.getEmail())
+                    .subject("Smart Queue Shop Owner Account Created - Set Your Password")
+                    .body("Shop owner invitation for: " + shopOwner.getEmail())
+                    .emailBody("Shop owner account created. Please set password and login.")
+                    .emailType(EmailType.NOTIFICATION)
+                    .status(EmailStatus.PENDING)
+                    .attemptCount(1)
+                    .retryCount(0)
+                    .failedAt(Instant.now())
+                    .retryAfter(Instant.now().plus(2, ChronoUnit.MINUTES))
+                    .failureReason(errorMessage)
+                    .build();
+
+            failedEmailRepository.save(failedEmail);
+            log.info("Failed shop owner invitation email saved for retry: {}", shopOwner.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to save shop owner invitation failed email record: {}", e.getMessage());
+        }
     }
 }

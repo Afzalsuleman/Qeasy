@@ -57,6 +57,9 @@ public class QueueResponse {
     @Schema(description = "Timestamp when user was called")
     private Instant calledAt;
 
+    @Schema(description = "Timestamp when user was served/completed")
+    private Instant servedAt;
+
     @Schema(description = "Success message", example = "You have successfully joined the queue")
     private String message;
 }

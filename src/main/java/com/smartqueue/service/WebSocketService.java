@@ -65,6 +65,17 @@ public class WebSocketService {
     }
 
     /**
+     * Notify user when they have been served/completed
+     *
+     * @param userId User UUID
+     * @param notification QueueResponse with completion details
+     */
+    public void notifyUserServed(UUID userId, QueueResponse notification) {
+        log.info("Notifying user {} that they have been served", userId);
+        sendPersonalNotification(userId, notification);
+    }
+
+    /**
      * Notify user of position update
      *
      * @param userId User UUID

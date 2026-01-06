@@ -16,7 +16,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * JWT Authentication Filter
@@ -48,14 +52,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // Extract user details from token
                     UUID userId = jwtUtil.getUserIdFromToken(jwt);
                     String email = jwtUtil.getEmailFromToken(jwt);
+                    String role = jwtUtil.getRoleFromToken(jwt);
 
-                    // Create authentication token
-                    // Note: Using email as principal, userId stored in details
+                    // Build authorities list from role
+                    Collection<GrantedAuthority> authorities = new ArrayList<>();
+                    if (role != null && !role.isEmpty()) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                    }
+
+                    // Create authentication token with authorities
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     email,
                                     null,
-                                    new ArrayList<>() // No roles in MVP
+                                    authorities
                             );
 
                     // Store userId and other details
@@ -63,13 +73,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             userId,
                             email,
                             jwtUtil.getNameFromToken(jwt),
+                            role,
                             request
                     ));
 
                     // Set authentication in security context
                     SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                    log.debug("Set authentication for user: {} (ID: {})", email, userId);
+                    log.debug("Set authentication for user: {} (ID: {}, Role: {})", email, userId, role);
                 }
             }
         } catch (InvalidTokenException ex) {
@@ -105,11 +116,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         private final UUID userId;
         private final String email;
         private final String name;
+        private final String role;
 
-        public UserAuthenticationDetails(UUID userId, String email, String name, HttpServletRequest request) {
+        public UserAuthenticationDetails(UUID userId, String email, String name, String role, HttpServletRequest request) {
             this.userId = userId;
             this.email = email;
             this.name = name;
+            this.role = role;
         }
 
         public UUID getUserId() {
@@ -122,6 +135,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         public String getName() {
             return name;
+        }
+
+        public String getRole() {
+            return role;
         }
     }
 }

@@ -6,7 +6,7 @@ package com.smartqueue.model.enums;
  */
 public enum UserRole {
     /**
-     * Regular user - can join queues
+     * Regular user - can join queues and browse shops
      */
     USER,
 
@@ -17,5 +17,14 @@ public enum UserRole {
      * - Call next user in their shop's queue
      * - View analytics for their shop
      */
-    SHOP_OWNER
+    SHOP_OWNER,
+
+    /**
+     * Admin - can manage shop owners and view system-wide analytics
+     * Has access to:
+     * - Create shop owner accounts (with email invitation)
+     * - View all shops and their analytics
+     * - View system-wide dashboard with shop count and metrics
+     */
+    ADMIN
 }

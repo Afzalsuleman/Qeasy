@@ -62,4 +62,12 @@ public interface ShopRepository extends JpaRepository<Shop, UUID> {
      */
     @Query("SELECT s.id FROM Shop s WHERE s.isActive = true")
     List<UUID> findAllActiveShopIds();
+
+    /**
+     * Count active shops
+     * Used for admin dashboard metrics
+     *
+     * @return Number of active shops
+     */
+    long countByIsActiveTrue();
 }

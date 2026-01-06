@@ -45,6 +45,7 @@ public class QueueService {
     private DefaultRedisScript<Long> joinQueueScript;
     private DefaultRedisScript<Long> leaveQueueScript;
     private DefaultRedisScript<String> callNextUserScript;
+    private DefaultRedisScript<String> completeUserScript;
 
     @Autowired
     public QueueService(ShopRepository shopRepository,
@@ -85,6 +86,12 @@ public class QueueService {
         callNextUserScript.setScriptSource(
                 new ResourceScriptSource(new ClassPathResource("lua/call_next_user.lua")));
         callNextUserScript.setResultType(String.class);
+
+        // Load complete_user.lua
+        completeUserScript = new DefaultRedisScript<>();
+        completeUserScript.setScriptSource(
+                new ResourceScriptSource(new ClassPathResource("lua/complete_user.lua")));
+        completeUserScript.setResultType(String.class);
 
         log.info("Lua scripts loaded successfully");
     }
@@ -377,5 +384,107 @@ public class QueueService {
                 .peopleAhead(position.intValue())
                 .estimatedWaitTimeMinutes(estimatedWaitTime)
                 .build();
+    }
+
+    /**
+     * Mark current user as served/completed (shop owner only)
+     *
+     * @param shopId Shop UUID
+     * @param ownerEmail Shop owner's email from JWT
+     * @return QueueResponse with completed user details
+     */
+    @Transactional
+    public QueueResponse completeUser(UUID shopId, String ownerEmail) {
+        log.info("Owner {} completing current user for shop {}", ownerEmail, shopId);
+
+        // Validate shop and ownership
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ShopNotFoundException("Shop not found with ID: " + shopId));
+
+        User owner = userRepository.findByEmail(ownerEmail)
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
+
+        if (!shop.getOwner().getId().equals(owner.getId())) {
+            throw new UnauthorizedException("You are not authorized to complete users for this shop");
+        }
+
+        if (!shop.getIsActive()) {
+            throw new ShopInactiveException("Shop is currently inactive");
+        }
+
+        // Prepare Redis keys
+        String queueKey = "queue:" + shopId;
+        String usersKey = "queue:" + shopId + ":users";
+        String waitingKey = "queue:" + shopId + ":waiting";
+        String currentKey = "queue:" + shopId + ":current";
+
+        // Execute Lua script atomically
+        String resultJson = redisTemplate.execute(
+                completeUserScript,
+                Arrays.asList(queueKey, usersKey, waitingKey, currentKey),
+                String.valueOf(System.currentTimeMillis())
+        );
+
+        if (resultJson == null) {
+            throw new SystemException("Failed to complete user");
+        }
+
+        // Parse result JSON
+        try {
+            JsonNode result = objectMapper.readTree(resultJson);
+
+            // Check for error
+            if (result.has("error")) {
+                String error = result.get("error").asText();
+                String message = result.get("message").asText();
+                log.warn("Failed to complete user: {} - {}", error, message);
+                throw new SystemException(message);
+            }
+
+            UUID userId = UUID.fromString(result.get("userId").asText());
+            String userName = result.get("userName").asText();
+            String userEmail = result.get("userEmail").asText();
+            long joinedAtMs = result.get("joinedAt").asLong();
+            long calledAtMs = result.get("calledAt").asLong();
+            long servedAtMs = result.get("servedAt").asLong();
+            int remainingInQueue = result.get("remainingInQueue").asInt();
+
+            // Update database
+            QueueLog queueLog = queueLogRepository
+                    .findByShopIdAndUserIdAndStatus(shopId, userId, QueueStatus.CALLED)
+                    .orElseThrow(() -> new SystemException("Queue log not found for user being served"));
+
+            queueLog.setStatus(QueueStatus.SERVED);
+            queueLog.setCompletedAt(Instant.ofEpochMilli(servedAtMs));
+            queueLogRepository.save(queueLog);
+
+            log.info("User {} marked as served for shop {}", userName, shopId);
+
+            QueueResponse response = QueueResponse.builder()
+                    .shopId(shopId)
+                    .shopName(shop.getName())
+                    .userId(userId)
+                    .userName(userName)
+                    .userEmail(userEmail)
+                    .status("SERVED")
+                    .totalInQueue(remainingInQueue)
+                    .joinedAt(Instant.ofEpochMilli(joinedAtMs))
+                    .calledAt(Instant.ofEpochMilli(calledAtMs))
+                    .servedAt(Instant.ofEpochMilli(servedAtMs))
+                    .message("User " + userName + " has been served successfully")
+                    .build();
+
+            // Broadcast to all subscribers of this shop's queue
+            webSocketService.broadcastQueueUpdate(shopId, response);
+
+            // Send personal notification to the served user
+            webSocketService.notifyUserServed(userId, response);
+
+            return response;
+
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse Lua script result: {}", e.getMessage());
+            throw new SystemException("Failed to parse queue data");
+        }
     }
 }

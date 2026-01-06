@@ -45,6 +45,13 @@ public class User extends BaseEntity {
     @Builder.Default
     private UserRole role = UserRole.USER;
 
+    @Column(length = 255)
+    private String password;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean passwordSet = false;
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
