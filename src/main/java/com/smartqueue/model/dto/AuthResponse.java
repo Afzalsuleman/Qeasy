@@ -38,4 +38,8 @@ public class AuthResponse {
 
     @Schema(description = "Token expiration time in milliseconds (only with token)", example = "86400000")
     private Long expiresIn;
+
+    @Schema(description = "Whether the user has set their password (for SHOP_OWNER and ADMIN roles)",
+            example = "false")
+    private Boolean passwordSet;
 }

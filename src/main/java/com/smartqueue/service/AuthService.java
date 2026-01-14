@@ -206,10 +206,10 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
 
-        // Verify password is set (USER roles don't have passwords, so this handles role validation implicitly)
-        if (user.getPassword() == null || !user.getPasswordSet()) {
-            log.warn("User {} attempted login but password not set", request.getEmail());
-            throw new UnauthorizedException("Password not set. Please set password first.");
+        // Verify password exists (USER roles don't have passwords, so this handles role validation implicitly)
+        if (user.getPassword() == null) {
+            log.warn("User {} attempted login but no password found", request.getEmail());
+            throw new UnauthorizedException("Invalid email or password");
         }
 
         // Verify password matches
@@ -229,6 +229,7 @@ public class AuthService {
                 .name(user.getName())
                 .token(token)
                 .expiresIn(jwtExpirationMs)
+                .passwordSet(user.getPasswordSet())
                 .message("Authentication successful")
                 .build();
     }
@@ -281,6 +282,7 @@ public class AuthService {
                 .name(user.getName())
                 .token(token)
                 .expiresIn(jwtExpirationMs)
+                .passwordSet(user.getPasswordSet())
                 .message("Password changed successfully")
                 .build();
     }

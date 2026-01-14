@@ -194,29 +194,25 @@ public class QueueController {
     }
 
     @Operation(
-            summary = "Mark current user as served/completed (Shop owner only)",
-            description = "Mark the currently served user as completed and remove them from the queue. " +
-                    "Only the shop owner can mark users as completed. This should be called after the user has been served."
+            summary = "Mark yourself as completed after being served",
+            description = "Mark yourself as completed after being called and served. " +
+                    "Users can only complete themselves after they have been called by the shop owner. " +
+                    "This removes you from the queue and marks your service as complete."
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "User marked as served successfully",
+                    description = "Successfully marked as served",
                     content = @Content(schema = @Schema(implementation = QueueResponse.class))
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "No user is currently being served or shop inactive",
+                    description = "You have not been called yet, already completed, or shop inactive",
                     content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
             ),
             @ApiResponse(
                     responseCode = "401",
                     description = "Unauthorized - JWT token missing or invalid",
-                    content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Not authorized - only shop owner can complete users",
                     content = @Content(schema = @Schema(implementation = com.smartqueue.model.dto.ErrorResponse.class))
             ),
             @ApiResponse(
@@ -231,9 +227,9 @@ public class QueueController {
             @PathVariable UUID shopId,
             Authentication authentication
     ) {
-        String ownerEmail = authentication.getName();
-        log.info("Owner {} marking current user as served for shop {}", ownerEmail, shopId);
-        QueueResponse response = queueService.completeUser(shopId, ownerEmail);
+        String userEmail = authentication.getName();
+        log.info("User {} marking themselves as completed for shop {}", userEmail, shopId);
+        QueueResponse response = queueService.completeUser(shopId, userEmail);
         return ResponseEntity.ok(response);
     }
 }

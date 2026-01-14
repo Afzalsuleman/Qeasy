@@ -63,7 +63,7 @@ public class AdminService {
                 .phone(request.getPhone())
                 .role(UserRole.SHOP_OWNER)
                 .password(encodedPassword)
-                .passwordSet(true)
+                .passwordSet(false)
                 .build();
 
         shopOwner = userRepository.save(shopOwner);

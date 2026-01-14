@@ -277,13 +277,16 @@ public class QueueService {
         String usersKey = "queue:" + shopId + ":users";
         String waitingKey = "queue:" + shopId + ":waiting";
         String currentKey = "queue:" + shopId + ":current";
+        String isCompletedKey = "queue:" + shopId + ":is_completed";
 
         // Execute Lua script atomically
         String resultJson = redisTemplate.execute(
                 callNextUserScript,
-                Arrays.asList(queueKey, usersKey, waitingKey, currentKey),
+                Arrays.asList(queueKey, usersKey, waitingKey, currentKey, isCompletedKey),
                 String.valueOf(System.currentTimeMillis())
         );
+
+        log.info("callNextUser Lua script result: {}", resultJson);
 
         if (resultJson == null) {
             throw new QueueEmptyException("Queue is empty - no users to call");
@@ -297,6 +300,7 @@ public class QueueService {
             String userEmail = result.get("userEmail").asText();
             long joinedAtMs = result.get("joinedAt").asLong();
             long calledAtMs = result.get("calledAt").asLong();
+            int position = result.get("position").asInt();
             int remainingInQueue = result.get("remainingInQueue").asInt();
 
             // Update database
@@ -308,7 +312,8 @@ public class QueueService {
             queueLog.setCalledAt(Instant.ofEpochMilli(calledAtMs));
             queueLogRepository.save(queueLog);
 
-            log.info("User {} called for shop {}", userName, shopId);
+            log.info("User {} (ID: {}) called for shop {} - position set to {}, added to is_completed set",
+                     userName, userId, shopId, position);
 
             QueueResponse response = QueueResponse.builder()
                     .shopId(shopId)
@@ -316,6 +321,7 @@ public class QueueService {
                     .userId(userId)
                     .userName(userName)
                     .userEmail(userEmail)
+                    .position(position)
                     .status("CALLED")
                     .totalInQueue(remainingInQueue)
                     .joinedAt(Instant.ofEpochMilli(joinedAtMs))
@@ -356,9 +362,38 @@ public class QueueService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
 
-        // Get position from Redis
-        String queueKey = "queue:" + shopId;
-        Long position = redisTemplate.opsForZSet().rank(queueKey, user.getId().toString());
+        // Check if user is currently being called (in is_completed set)
+        String isCompletedKey = "queue:" + shopId + ":is_completed";
+        Double calledScore = redisTemplate.opsForZSet().score(isCompletedKey, user.getId().toString());
+
+        log.debug("Checking is_completed set for user {} in shop {}: score = {}", user.getId(), shopId, calledScore);
+
+        if (calledScore != null) {
+            // User is currently being CALLED (position 0)
+            Long totalSize = redisTemplate.opsForZSet().zCard("queue:" + shopId + ":waiting");
+            int total = totalSize != null ? totalSize.intValue() : 0;
+
+            log.info("User {} is in CALLED state with position 0", user.getId());
+
+            return QueueResponse.builder()
+                    .shopId(shopId)
+                    .shopName(shop.getName())
+                    .userId(user.getId())
+                    .userName(user.getName())
+                    .userEmail(user.getEmail())
+                    .position(0)
+                    .status("CALLED")
+                    .totalInQueue(total)
+                    .peopleAhead(0)
+                    .estimatedWaitTimeMinutes(0)
+                    .message("You are currently being served")
+                    .build();
+        }
+
+        // Get position from the WAITING set (excludes CALLED users)
+        // This ensures accurate position calculation after callNextUser()
+        String waitingKey = "queue:" + shopId + ":waiting";
+        Long position = redisTemplate.opsForZSet().rank(waitingKey, user.getId().toString());
 
         if (position == null) {
             throw new UserNotInQueueException("You are not in this queue");
@@ -368,8 +403,8 @@ public class QueueService {
         int actualPosition = position.intValue() + 1;
         int estimatedWaitTime = position.intValue() * shop.getAvgServiceTimeMinutes();
 
-        // Get total queue size
-        Long totalSize = redisTemplate.opsForZSet().zCard(queueKey);
+        // Get total waiting queue size (excludes users currently being CALLED)
+        Long totalSize = redisTemplate.opsForZSet().zCard(waitingKey);
         int total = totalSize != null ? totalSize.intValue() : 0;
 
         return QueueResponse.builder()
@@ -387,26 +422,23 @@ public class QueueService {
     }
 
     /**
-     * Mark current user as served/completed (shop owner only)
+     * Mark user as served/completed (user self-completes after being served)
      *
      * @param shopId Shop UUID
-     * @param ownerEmail Shop owner's email from JWT
+     * @param userEmail User's email from JWT
      * @return QueueResponse with completed user details
      */
     @Transactional
-    public QueueResponse completeUser(UUID shopId, String ownerEmail) {
-        log.info("Owner {} completing current user for shop {}", ownerEmail, shopId);
+    public QueueResponse completeUser(UUID shopId, String userEmail) {
+        log.info("User {} marking themselves as completed for shop {}", userEmail, shopId);
 
-        // Validate shop and ownership
+        // Validate shop
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ShopNotFoundException("Shop not found with ID: " + shopId));
 
-        User owner = userRepository.findByEmail(ownerEmail)
+        // Get user
+        User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
-
-        if (!shop.getOwner().getId().equals(owner.getId())) {
-            throw new UnauthorizedException("You are not authorized to complete users for this shop");
-        }
 
         if (!shop.getIsActive()) {
             throw new ShopInactiveException("Shop is currently inactive");
@@ -417,11 +449,13 @@ public class QueueService {
         String usersKey = "queue:" + shopId + ":users";
         String waitingKey = "queue:" + shopId + ":waiting";
         String currentKey = "queue:" + shopId + ":current";
+        String isCompletedKey = "queue:" + shopId + ":is_completed";
 
-        // Execute Lua script atomically
+        // Execute Lua script atomically (pass userId and timestamp as ARGV)
         String resultJson = redisTemplate.execute(
                 completeUserScript,
-                Arrays.asList(queueKey, usersKey, waitingKey, currentKey),
+                Arrays.asList(queueKey, usersKey, waitingKey, currentKey, isCompletedKey),
+                user.getId().toString(),
                 String.valueOf(System.currentTimeMillis())
         );
 
@@ -438,20 +472,29 @@ public class QueueService {
                 String error = result.get("error").asText();
                 String message = result.get("message").asText();
                 log.warn("Failed to complete user: {} - {}", error, message);
-                throw new SystemException(message);
+
+                // Handle specific error cases
+                if ("USER_NOT_CALLED".equals(error)) {
+                    throw new UserNotInQueueException(message);
+                } else if ("USER_NOT_FOUND".equals(error)) {
+                    throw new SystemException(message);
+                } else {
+                    throw new SystemException(message);
+                }
             }
 
-            UUID userId = UUID.fromString(result.get("userId").asText());
+            UUID completedUserId = UUID.fromString(result.get("userId").asText());
             String userName = result.get("userName").asText();
-            String userEmail = result.get("userEmail").asText();
+            String completedUserEmail = result.get("userEmail").asText();
             long joinedAtMs = result.get("joinedAt").asLong();
             long calledAtMs = result.get("calledAt").asLong();
             long servedAtMs = result.get("servedAt").asLong();
+            int position = result.get("position").asInt();
             int remainingInQueue = result.get("remainingInQueue").asInt();
 
             // Update database
             QueueLog queueLog = queueLogRepository
-                    .findByShopIdAndUserIdAndStatus(shopId, userId, QueueStatus.CALLED)
+                    .findByShopIdAndUserIdAndStatus(shopId, completedUserId, QueueStatus.CALLED)
                     .orElseThrow(() -> new SystemException("Queue log not found for user being served"));
 
             queueLog.setStatus(QueueStatus.SERVED);
@@ -463,22 +506,23 @@ public class QueueService {
             QueueResponse response = QueueResponse.builder()
                     .shopId(shopId)
                     .shopName(shop.getName())
-                    .userId(userId)
+                    .userId(completedUserId)
                     .userName(userName)
-                    .userEmail(userEmail)
+                    .userEmail(completedUserEmail)
+                    .position(position)
                     .status("SERVED")
                     .totalInQueue(remainingInQueue)
                     .joinedAt(Instant.ofEpochMilli(joinedAtMs))
                     .calledAt(Instant.ofEpochMilli(calledAtMs))
                     .servedAt(Instant.ofEpochMilli(servedAtMs))
-                    .message("User " + userName + " has been served successfully")
+                    .message("You have been served successfully")
                     .build();
 
             // Broadcast to all subscribers of this shop's queue
             webSocketService.broadcastQueueUpdate(shopId, response);
 
             // Send personal notification to the served user
-            webSocketService.notifyUserServed(userId, response);
+            webSocketService.notifyUserServed(completedUserId, response);
 
             return response;
 
