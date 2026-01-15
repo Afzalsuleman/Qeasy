@@ -41,6 +41,7 @@ public class QueueService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
     private final WebSocketService webSocketService;
+    private final AnalyticsService analyticsService;
 
     private DefaultRedisScript<Long> joinQueueScript;
     private DefaultRedisScript<Long> leaveQueueScript;
@@ -53,13 +54,15 @@ public class QueueService {
                        QueueLogRepository queueLogRepository,
                        RedisTemplate<String, String> redisTemplate,
                        ObjectMapper objectMapper,
-                       WebSocketService webSocketService) {
+                       WebSocketService webSocketService,
+                       AnalyticsService analyticsService) {
         this.shopRepository = shopRepository;
         this.userRepository = userRepository;
         this.queueLogRepository = queueLogRepository;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.webSocketService = webSocketService;
+        this.analyticsService = analyticsService;
     }
 
     /**
@@ -181,6 +184,11 @@ public class QueueService {
         // Broadcast real-time update to all subscribers of this shop's queue
         webSocketService.broadcastQueueUpdate(shopId, response);
 
+        // Broadcast current queue analytics (joinedCount, calledCount, etc.)
+        analyticsService.getCurrentQueueStatsForBroadcast(shopId);
+        webSocketService.broadcastCurrentQueueAnalytics(shopId,
+                analyticsService.getCurrentQueueStatsForBroadcast(shopId));
+
         return response;
     }
 
@@ -244,6 +252,10 @@ public class QueueService {
                 .build();
 
         webSocketService.broadcastQueueUpdate(shopId, leaveUpdate);
+
+        // Broadcast current queue analytics (joinedCount, calledCount, etc.)
+        webSocketService.broadcastCurrentQueueAnalytics(shopId,
+                analyticsService.getCurrentQueueStatsForBroadcast(shopId));
     }
 
     /**
@@ -334,6 +346,10 @@ public class QueueService {
 
             // Send personal notification to the called user
             webSocketService.notifyUserCalled(userId, response);
+
+            // Broadcast current queue analytics (joinedCount, calledCount, etc.)
+            webSocketService.broadcastCurrentQueueAnalytics(shopId,
+                    analyticsService.getCurrentQueueStatsForBroadcast(shopId));
 
             return response;
 
@@ -523,6 +539,10 @@ public class QueueService {
 
             // Send personal notification to the served user
             webSocketService.notifyUserServed(completedUserId, response);
+
+            // Broadcast current queue analytics (joinedCount, calledCount, etc.)
+            webSocketService.broadcastCurrentQueueAnalytics(shopId,
+                    analyticsService.getCurrentQueueStatsForBroadcast(shopId));
 
             return response;
 

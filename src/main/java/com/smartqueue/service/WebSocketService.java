@@ -1,5 +1,6 @@
 package com.smartqueue.service;
 
+import com.smartqueue.model.dto.AnalyticsResponse;
 import com.smartqueue.model.dto.QueueResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,7 +108,7 @@ public class WebSocketService {
     }
 
     /**
-     * Broadcast queue statistics update
+     * Broadcast queue statistics update (legacy method with simple data)
      *
      * @param shopId Shop UUID
      * @param totalInQueue Total users in queue
@@ -124,5 +125,29 @@ public class WebSocketService {
                 .build();
 
         messagingTemplate.convertAndSend(destination, stats);
+    }
+
+    /**
+     * Broadcast current queue analytics with detailed breakdown
+     * Sends: currentQueueSize, joinedCount, calledCount, estimatedWaitTime
+     * Topic: /topic/queue/{shopId}/current
+     *
+     * @param shopId Shop UUID
+     * @param analyticsResponse Current queue statistics
+     */
+    public void broadcastCurrentQueueAnalytics(UUID shopId, AnalyticsResponse analyticsResponse) {
+        if (analyticsResponse == null) {
+            log.warn("Cannot broadcast null analytics for shop {}", shopId);
+            return;
+        }
+
+        String destination = "/topic/queue/" + shopId + "/current";
+        log.debug("Broadcasting current queue analytics to {}: queue={}, joined={}, called={}",
+                destination,
+                analyticsResponse.getCurrentQueueSize(),
+                analyticsResponse.getJoinedCount(),
+                analyticsResponse.getCalledCount());
+
+        messagingTemplate.convertAndSend(destination, analyticsResponse);
     }
 }

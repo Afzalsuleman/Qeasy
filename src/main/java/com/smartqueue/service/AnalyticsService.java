@@ -111,6 +111,55 @@ public class AnalyticsService {
     }
 
     /**
+     * Get current queue statistics (internal use for broadcasting)
+     * Can be called without transaction for real-time updates
+     *
+     * @param shopId Shop UUID
+     * @return AnalyticsResponse with current queue metrics
+     */
+    public AnalyticsResponse getCurrentQueueStatsForBroadcast(UUID shopId) {
+        try {
+            log.debug("Fetching current queue stats for broadcast - shop {}", shopId);
+
+            // Validate shop
+            Shop shop = shopRepository.findById(shopId)
+                    .orElseThrow(() -> new ShopNotFoundException("Shop not found with ID: " + shopId));
+
+            // Get current queue size from Redis (waiting queue)
+            String waitingKey = "queue:" + shopId + ":waiting";
+            Long waitingQueueSize = redisTemplate.opsForZSet().zCard(waitingKey);
+            int joinedCount = waitingQueueSize != null ? waitingQueueSize.intValue() : 0;
+
+            // Get called/currently being served count from Redis
+            String isCompletedKey = "queue:" + shopId + ":is_completed";
+            Long calledQueueSize = redisTemplate.opsForZSet().zCard(isCompletedKey);
+            int calledCount = calledQueueSize != null ? calledQueueSize.intValue() : 0;
+
+            // Total current queue size (waiting + being served)
+            int currentQueue = joinedCount + calledCount;
+
+            // Calculate estimated wait time for last person
+            int estimatedWaitTime = currentQueue > 0
+                    ? (currentQueue - 1) * shop.getAvgServiceTimeMinutes()
+                    : 0;
+
+            return AnalyticsResponse.builder()
+                    .shopId(shopId)
+                    .shopName(shop.getName())
+                    .currentQueueSize(currentQueue)
+                    .joinedCount(joinedCount)
+                    .calledCount(calledCount)
+                    .estimatedWaitTimeMinutes(estimatedWaitTime)
+                    .maxQueueSize(shop.getMaxQueueSize())
+                    .avgServiceTimeMinutes(shop.getAvgServiceTimeMinutes())
+                    .build();
+        } catch (Exception e) {
+            log.error("Error fetching current queue stats for broadcast: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Get current queue statistics
      * Authorization is handled at controller level via @ShopOwnerOnly annotation
      *
@@ -125,20 +174,33 @@ public class AnalyticsService {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ShopNotFoundException("Shop not found with ID: " + shopId));
 
-        // Get current queue size from Redis
-        String queueKey = "queue:" + shopId;
-        Long currentQueueSize = redisTemplate.opsForZSet().zCard(queueKey);
-        int currentQueue = currentQueueSize != null ? currentQueueSize.intValue() : 0;
+        // Get current queue size from Redis (waiting queue)
+        String waitingKey = "queue:" + shopId + ":waiting";
+        Long waitingQueueSize = redisTemplate.opsForZSet().zCard(waitingKey);
+        int joinedCount = waitingQueueSize != null ? waitingQueueSize.intValue() : 0;
+
+        // Get called/currently being served count from Redis
+        String isCompletedKey = "queue:" + shopId + ":is_completed";
+        Long calledQueueSize = redisTemplate.opsForZSet().zCard(isCompletedKey);
+        int calledCount = calledQueueSize != null ? calledQueueSize.intValue() : 0;
+
+        // Total current queue size (waiting + being served)
+        int currentQueue = joinedCount + calledCount;
 
         // Calculate estimated wait time for last person
         int estimatedWaitTime = currentQueue > 0
                 ? (currentQueue - 1) * shop.getAvgServiceTimeMinutes()
                 : 0;
 
+        log.info("Current queue stats for shop {}: {} total ({} waiting, {} being served)",
+                shopId, currentQueue, joinedCount, calledCount);
+
         return AnalyticsResponse.builder()
                 .shopId(shopId)
                 .shopName(shop.getName())
                 .currentQueueSize(currentQueue)
+                .joinedCount(joinedCount)
+                .calledCount(calledCount)
                 .estimatedWaitTimeMinutes(estimatedWaitTime)
                 .maxQueueSize(shop.getMaxQueueSize())
                 .avgServiceTimeMinutes(shop.getAvgServiceTimeMinutes())

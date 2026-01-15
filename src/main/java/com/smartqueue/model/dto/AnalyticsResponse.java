@@ -29,6 +29,12 @@ public class AnalyticsResponse {
     @Schema(description = "Current number of people in queue", example = "5")
     private Integer currentQueueSize;
 
+    @Schema(description = "Number of people with JOINED status (waiting in queue)", example = "4")
+    private Integer joinedCount;
+
+    @Schema(description = "Number of people with CALLED status (currently being served)", example = "1")
+    private Integer calledCount;
+
     @Schema(description = "Total visitors in analyzed period", example = "150")
     private Long totalVisitors;
 
